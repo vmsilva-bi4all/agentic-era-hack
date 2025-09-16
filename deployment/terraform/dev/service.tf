@@ -22,7 +22,7 @@ resource "google_compute_network" "default" {
   name                    = "${var.project_name}-alloydb-network"
   project                 = var.dev_project_id
   auto_create_subnetworks = false
-  depends_on = [resource.google_project_service.services]
+  depends_on              = [resource.google_project_service.services]
 }
 
 # Subnet for AlloyDB
@@ -34,7 +34,7 @@ resource "google_compute_subnetwork" "default" {
   project       = var.dev_project_id
 
   # This is required for Cloud Run VPC connectors
-  purpose       = "PRIVATE"
+  purpose = "PRIVATE"
 
   private_ip_google_access = true
 }
@@ -135,8 +135,8 @@ resource "google_cloud_run_v2_service" "app" {
 
       resources {
         limits = {
-          cpu    = "4"
-          memory = "8Gi"
+          cpu    = "1"
+          memory = "3Gi"
         }
       }
 
@@ -156,7 +156,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
 
-    service_account = google_service_account.app_sa.email
+    service_account                  = google_service_account.app_sa.email
     max_instance_request_concurrency = 40
 
     scaling {
