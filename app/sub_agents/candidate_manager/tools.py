@@ -16,7 +16,7 @@ class CandidateManagerTools:
         self.db_params = {
             "host": self._get_secret(project_id, "hero-cloudsql-host"),
             "port": self._get_secret(project_id, "hero-cloudsql-port"),
-            "dbname": "postgres",
+            "dbname": self._get_secret(project_id, "hero-cloudsql-dbname"),
             "user": self._get_secret(project_id, "hero-cloudsql-user"),
             "password": self._get_secret(project_id, "hero-cloudsql-password"),
         }
@@ -99,6 +99,48 @@ class CandidateManagerTools:
                     if cv is None:
                         return {"status": "error", "message": "CV not found."}
                     return {"status": "success", "name": cv[0], "email": cv[1], "content": cv[2]}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_cv_by_id(self, cv_id: int) -> Dict[str, str]:
+        """Retrieves a CV from the database by its ID.
+        
+        Args:
+            cv_id (int): The ID of the CV.
+        
+        Returns:
+            Dict[str, str]: A dictionary containing the CV.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT name, email, content FROM human_resources.candidates WHERE id = %s;",
+                        (cv_id,),
+                    )
+                    cv = cur.fetchone()
+                    conn.commit()
+                    if cv is None:
+                        return {"status": "error", "message": "CV not found."}
+                    return {"status": "success", "name": cv[0], "email": cv[1], "content": cv[2]}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def list_job_offers(self) -> Dict[str, Union[str, List[Dict[str, str]]]]:
+        """Retrieves a list of job offers from the database.
+        
+        Returns:
+            Dict[str, Union[str, List[Dict[str, str]]]]: A dictionary containing the list of job offers.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT title, description FROM human_resources.job_offerings;")
+                    job_offers = cur.fetchall()
+                    conn.commit()
+                    return {"status": "success", "job_offers": [{"title": row[0], "description": row[1]} for row in job_offers]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
