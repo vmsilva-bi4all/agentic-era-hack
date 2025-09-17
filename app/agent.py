@@ -3,13 +3,11 @@ from google.adk.agents import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
 
 from . import prompt
-from .sub_agents.cv_storage.cv_storage import cv_storage_agent
-from .sub_agents.job_offer_storage.job_offer_storage import job_offer_storage_agent
-from .sub_agents.cv_retrieval.cv_retrieval import cv_retrieval_agent
-from .sub_agents.job_offer_retrieval.job_offer_retrieval import job_offer_retrieval_agent
-from .sub_agents.job_matcher.job_matcher import job_matching_agent
+from .sub_agents.candidate_manager.candidate_manager import candidate_manager_agent
+from .sub_agents.opening_manager.opening_manager import opening_manager_agent
+from .sub_agents.evaluator.evaluator import evaluator_agent
 
-MODEL = "gemini-2.5-pro"
+MODEL = "gemini-2.5-flash"
 
 hr_coordinator = LlmAgent(
     name="hr_coordinator",
@@ -22,11 +20,7 @@ hr_coordinator = LlmAgent(
     instruction=prompt.HR_COORDINATOR_PROMPT,
     output_key="hr_coordinator_output",
     tools=[
-        AgentTool(agent=cv_storage_agent),
-        AgentTool(agent=job_offer_storage_agent),
-        AgentTool(agent=cv_retrieval_agent),
-        AgentTool(agent=job_offer_retrieval_agent),
-        AgentTool(agent=job_matching_agent),
+        AgentTool(agent=candidate_manager_agent),
     ],
 )
 
