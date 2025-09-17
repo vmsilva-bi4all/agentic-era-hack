@@ -1,0 +1,1 @@
+OPENING_MANAGER_PROMPT = """"""
