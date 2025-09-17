@@ -1,3 +1,7 @@
+
+# Aux script to import existing resources into Terraform state
+# NOTE: draft, needs to be adapted to your project setup
+
 # Import AlloyDB network
 terraform import --var-file=vars/env.tfvars google_alloydb_network.db_network["staging"] projects/${STAGING_PROJECT_ID}/locations/${STAGING_REGION}/alloydbNetworks/hero-db-network
 
@@ -25,3 +29,6 @@ terraform import --var-file=vars/env.tfvars google_alloydb_instance.session_db_i
 
 #projects/qwiklabs-gcp-04-6db254dd6d5c/locations/us-central1/clusters/hero-alloydb-cluster
 #terraform import --var-file=vars/env.tfvars google_cloud_run_v2_service.app_staging
+
+
+terraform import --var-file=vars/env.tfvars google_bigquery_dataset.telemetry_logs_dataset[\"staging\"] projects/${STAGING_PROJECT_ID}/datasets/telemetry_logs
