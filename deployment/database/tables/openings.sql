@@ -6,7 +6,5 @@ CREATE TABLE IF NOT EXISTS
     "job_description" TEXT,
     "evaluation_criteria" TEXT,
     "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    "created_by" VARCHAR(255),
-    "updated_by" VARCHAR(255) 
+    "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
   );
