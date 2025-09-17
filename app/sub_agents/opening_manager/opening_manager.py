@@ -1,6 +1,6 @@
 
 from google.adk import Agent
-from app.tools import db_tools
+from app.sub_agents.candidate_manager.tools import candidate_manager_tools as db_tools
 from . import prompt
 
 MODEL = "gemini-2.5-flash"
