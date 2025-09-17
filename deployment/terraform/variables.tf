@@ -17,12 +17,7 @@ variable "project_name" {
   description = "Project name used as a base for resource naming"
   default     = "hero"
 }
-# Cloud SQL user password
-variable "hr_db_password" {
-  description = "Password for hr_user in Cloud SQL."
-  type        = string
-  sensitive   = true
-}
+
 
 variable "prod_project_id" {
   type        = string
