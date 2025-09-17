@@ -1,6 +1,5 @@
 
 from google.adk import Agent
-from app.sub_agents.candidate_manager.tools import candidate_manager_tools as db_tools
 from . import prompt
 
 MODEL = "gemini-2.5-flash"
@@ -10,5 +9,5 @@ evaluator_agent = Agent(
     name="evaluator_agent",
     instruction=prompt.EVALUATOR_PROMPT,
     output_key="evaluator_output",
-    tools=[db_tools.get_cv_by_id, db_tools.list_job_offers],
+    tools=[],
 )
