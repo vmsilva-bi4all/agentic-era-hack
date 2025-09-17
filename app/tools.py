@@ -8,6 +8,7 @@ class DatabaseTools:
     def __init__(self):
         self.db_params = {
             "host": os.environ.get("DB_HOST"),
+            "port": os.environ.get("DB_PORT"),
             "dbname": os.environ.get("DB_NAME"),
             "user": os.environ.get("DB_USER"),
             "password": os.environ.get("DB_PASSWORD"),
@@ -16,14 +17,14 @@ class DatabaseTools:
     def _get_connection(self):
         return psycopg2.connect(**self.db_params)
 
-    def add_cv(self, name: str, email: str, content: str) -> Dict[str, Any]:
+    def add_cv(self, name: str, email: str, cv_text: str) -> Dict[str, Any]:
         """Adds a new CV to the database."""
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "INSERT INTO cvs (name, email, content) VALUES (%s, %s, %s) RETURNING id;",
-                        (name, email, content),
+                        "INSERT INTO human_resources.candidates (name, email, cv_text) VALUES (%s, %s, %s) RETURNING id;",
+                        (name, email, cv_text),
                     )
                     cv_id = cur.fetchone()[0]
                     conn.commit()
@@ -55,10 +56,10 @@ class DatabaseTools:
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute("SELECT id, name, email, content FROM cvs WHERE id = %s;", (cv_id,))
+                    cur.execute("SELECT id, name, email, cv_text FROM human_resources.candidates WHERE id = %s;", (cv_id,))
                     cv = cur.fetchone()
                     if cv:
-                        return {"id": cv[0], "name": cv[1], "email": cv[2], "content": cv[3]}
+                        return {"id": cv[0], "name": cv[1], "email": cv[2], "cv_text": cv[3]}
                     return {"status": "error", "message": "CV not found."}
         except Exception as e:
             return {"status": "error", "message": str(e)}
