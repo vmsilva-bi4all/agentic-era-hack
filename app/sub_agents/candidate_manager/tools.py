@@ -1,18 +1,37 @@
 import os
 import psycopg2
 from typing import Union, Dict, List
+from google.cloud import secretmanager
+import google.auth
 
 class CandidateManagerTools:
     """Tools for the Candidate Manager Agent."""
 
     def __init__(self):
+        try:
+            _, project_id = google.auth.default()
+        except google.auth.exceptions.DefaultCredentialsError:
+            project_id = None
+
         self.db_params = {
-            "host": os.environ.get("DB_HOST"),
-            "port": os.environ.get("DB_PORT"),
-            "dbname": os.environ.get("DB_NAME"),
-            "user": os.environ.get("DB_USER"),
-            "password": os.environ.get("DB_PASSWORD"),
+            "host": self._get_secret(project_id, "hero-cloudsql-host"),
+            "port": self._get_secret(project_id, "hero-cloudsql-port"),
+            "dbname": "postgres",
+            "user": self._get_secret(project_id, "hero-cloudsql-user"),
+            "password": self._get_secret(project_id, "hero-cloudsql-password"),
         }
+
+    def _get_secret(self, project_id: str, secret_id: str, version_id: str = "latest") -> str:
+        """Retrieves a secret from Google Cloud Secret Manager."""
+        try:
+            client = secretmanager.SecretManagerServiceClient()
+            name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
+            response = client.access_secret_version(name=name)
+            return response.payload.data.decode("UTF-8")
+        except Exception as e:
+            # Handle exceptions (e.g., secret not found, permission errors)
+            print(f"Error accessing secret {secret_id}: {e}")
+            return None
 
     def _get_connection(self):
         return psycopg2.connect(**self.db_params)

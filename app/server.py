@@ -20,12 +20,14 @@ from google.adk.cli.fast_api import get_fast_api_app
 from google.cloud import logging as google_cloud_logging
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider, export
+from google.cloud import secretmanager
 
 from app.utils.gcs import create_bucket_if_not_exists
 from app.utils.tracing import CloudTraceLoggingSpanExporter
 from app.utils.typing import Feedback
 
 _, project_id = google.auth.default()
+print(f"Project ID: {project_id}")
 logging_client = google_cloud_logging.Client()
 logger = logging_client.logger(__name__)
 allow_origins = (
@@ -43,11 +45,24 @@ provider.add_span_processor(processor)
 trace.set_tracer_provider(provider)
 
 AGENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+def _get_secret(project_id: str, secret_id: str, version_id: str = "latest") -> str:
+    """Retrieves a secret from Google Cloud Secret Manager."""
+    try:
+        client = secretmanager.SecretManagerServiceClient()
+        name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
+        response = client.access_secret_version(name=name)
+        return response.payload.data.decode("UTF-8")
+    except Exception as e:
+        # Handle exceptions (e.g., secret not found, permission errors)
+        print(f"Error accessing secret {secret_id}: {e}")
+        return None
+
 # AlloyDB session configuration
-db_user = os.environ.get("DB_USER", "postgres")
-db_name = os.environ.get("DB_NAME", "postgres")
-db_pass = os.environ.get("DB_PASS")
-db_host = os.environ.get("DB_HOST")
+db_user = _get_secret(project_id, "hero-cloudsql-user")
+db_name = "postgres"
+db_pass = _get_secret(project_id, "hero-cloudsql-password")
+db_host = _get_secret(project_id, "hero-cloudsql-host")
 
 # Set session_service_uri if database credentials are available
 session_service_uri = None
