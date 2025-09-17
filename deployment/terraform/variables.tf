@@ -18,6 +18,7 @@ variable "project_name" {
   default     = "hero"
 }
 
+
 variable "prod_project_id" {
   type        = string
   description = "**Production** Google Cloud Project ID for resource deployment."
@@ -95,7 +96,7 @@ variable "cicd_sa_deployment_required_roles" {
   description = "List of roles to assign to the CICD runner service account for the Staging and Prod projects."
   type        = list(string)
   default = [
-    "roles/run.developer",    
+    "roles/run.developer",
     "roles/iam.serviceAccountUser",
     "roles/aiplatform.user",
     "roles/storage.admin"
