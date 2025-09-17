@@ -1,5 +1,5 @@
 
-from google.adk.agents import Agent
+from google.adk import Agent
 from app.sub_agents.candidate_manager.tools import candidate_manager_tools
 from . import prompt
 
