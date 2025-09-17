@@ -36,8 +36,18 @@ local-backend:
 
 # Set up development environment resources using Terraform
 setup-dev-env:
-	PROJECT_ID=$$(gcloud config get-value project) && \
-	(cd deployment/terraform/dev && terraform init && terraform apply --var-file vars/env.tfvars --var dev_project_id=$$PROJECT_ID --auto-approve)
+		PROJECT_ID=$$(gcloud config get-value project) && \
+		(cd deployment/terraform/dev && terraform init && terraform apply --var-file vars/env.tfvars --var dev_project_id=$$PROJECT_ID --auto-approve)
+		
+# 		# Minimal database initialization step
+# 		DB_IP=$$(terraform -chdir=deployment/terraform output -raw hero_postgres_instance_ip 2>/dev/null || echo "")
+# 		DB_PASS=$$(grep hr_db_password deployment/terraform/vars/env.tfvars | cut -d'=' -f2 | tr -d '" ')
+# 		if [ -n "$$DB_IP" ]; then \
+# 			sleep 30; \
+# 			PGPASSWORD=$$DB_PASS psql -h $$DB_IP -U hero_user -d hero_human_resources -f deployment/database/schema.sql || true; \
+# 			PGPASSWORD=$$DB_PASS psql -h $$DB_IP -U hero_user -d hero_human_resources -f deployment/database/tables/candidates.sql || true; \
+# 			PGPASSWORD=$$DB_PASS psql -h $$DB_IP -U hero_user -d hero_human_resources -f deployment/database/tables/openings.sql || true; \
+# 		fi
 
 # Run unit and integration tests
 test:
