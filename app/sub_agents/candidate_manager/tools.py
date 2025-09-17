@@ -62,22 +62,19 @@ class CandidateManagerTools:
         Returns:
             Dict[str, Any]: A dictionary containing the status of the operation and a list of candidates, where each candidate has a name, email, and CV content.
         """
+
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT name, email, content FROM human_resources.candidates;")
                     rows = cur.fetchall()
-
                     if not rows:
                         return {"status": "error", "message": "No candidates found."}
-
-                    candidates: List[Dict[str, str]] = [
+                    candidates = [
                         {"candidate name": row[0], "candidate email": row[1], "cv content": row[2]}
                         for row in rows
                     ]
-
                     return {"status": "success", "candidates": candidates}
-
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -95,15 +92,19 @@ class CandidateManagerTools:
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                        cur.execute(
-                            "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) = LOWER(%s) AND LOWER(email) = LOWER(%s);",
-                            (candidate_name, candidate_email),
-                        )
-                        cv = cur.fetchone()
-                        conn.commit()
-                        if cv is None:
-                            return {"status": "error", "message": "CV not found."}
-                        return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+                    cur.execute(
+                        "SELECT name, email, content FROM human_resources.candidates WHERE (LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s)) AND LOWER(email) = LOWER(%s);",
+                        (f"%{candidate_name}%", f"%{candidate_name}", f"{candidate_name}%", candidate_email,),
+                    )
+                    rows = cur.fetchall()
+
+                    if not rows:
+                        return {"status": "error", "message": "CV not found."}
+                    if len(rows) > 1:
+                        return {"status": "warning", "message": "Multiple CVs found. Full name required."}
+                    
+                    candidate = rows[0]
+                    return {"status": "success", "candidate_name": candidate[0], "candidate_email": candidate[1], "cv_content": candidate[2]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -111,24 +112,29 @@ class CandidateManagerTools:
         """Retrieves a CV from the database using the candidate name.
         
         Args:
-            candidate_name: (str): The candidate name of the CV.
+            candidate_name (str): The candidate name of the CV.
         
         Returns:
-            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
+            Dict[str, Any]: A dictionary containing the status of the operation, 
+                            the candidate name, the candidate email, and the CV content.
         """
 
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                        cur.execute(
-                            "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) = LOWER(%s);",
-                            (candidate_name,),
-                        )
-                        cv = cur.fetchone()
-                        conn.commit()
-                        if cv is None:
-                            return {"status": "error", "message": "CV not found."}
-                        return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+                    cur.execute(
+                        "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
+                        (f"%{candidate_name}%", f"%{candidate_name}", f"{candidate_name}%",)
+                    )
+                    rows = cur.fetchall()
+
+                    if not rows:
+                        return {"status": "error", "message": "CV not found."}
+                    if len(rows) > 1:
+                        return {"status": "warning", "message": "Multiple CVs found. Full name required."}
+                    
+                    candidate = rows[0]
+                    return {"status": "success", "candidate_name": candidate[0], "candidate_email": candidate[1], "cv_content": candidate[2]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -149,11 +155,10 @@ class CandidateManagerTools:
                         "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s);",
                         (candidate_email,),
                     )
-                    cv = cur.fetchone()
-                    conn.commit()
-                    if cv is None:
+                    row = cur.fetchone()
+                    if not row:
                         return {"status": "error", "message": "CV not found."}
-                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "candidate content": cv[2]}
+                    return {"status": "success", "candidate name": row[0], "candidate email": row[1], "candidate content": row[2]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
