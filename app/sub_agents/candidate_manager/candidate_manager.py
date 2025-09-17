@@ -10,5 +10,5 @@ candidate_manager_agent = Agent(
     name="candidate_manager_agent",
     instruction=prompt.CANDIDATE_MANAGER_PROMPT,
     output_key="candidate_manager_output",
-    tools=[candidate_manager_tools.add_cv, candidate_manager_tools.get_cv],
+    tools=[candidate_manager_tools.add_cv, candidate_manager_tools.get_candidates, candidate_manager_tools.get_cv_by_candidate_name, candidate_manager_tools.get_cv_by_candidate_email, candidate_manager_tools.get_cv_by_candidate_name_and_email],
 )
