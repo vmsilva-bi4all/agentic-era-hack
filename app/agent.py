@@ -20,7 +20,7 @@ hr_coordinator = LlmAgent(
     output_key="hr_coordinator_output",
     tools=[
         AgentTool(agent=candidate_manager_agent),
-     #   AgentTool(agent=opening_manager_agent),
+        AgentTool(agent=opening_manager_agent),
         AgentTool(agent=evaluator_agent),
     ],
 )
