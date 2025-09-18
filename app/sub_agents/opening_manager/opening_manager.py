@@ -2,7 +2,7 @@ from google.adk import Agent
 from app.sub_agents.opening_manager.tools import openings_manager_tools
 from . import prompt
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-2.5-pro"
 
 opening_manager_agent = Agent(
     model=MODEL,

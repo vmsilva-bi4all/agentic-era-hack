@@ -1,9 +1,8 @@
-
 from google.adk import Agent
 from app.sub_agents.evaluator.tools import evaluator_tools
 from . import prompt
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-2.5-pro"
 
 evaluator_agent = Agent(
     model=MODEL,
