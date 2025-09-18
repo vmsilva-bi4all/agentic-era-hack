@@ -1,4 +1,4 @@
-<p align="center">
+<p>
 	<img src="docs/agent.png" alt="Project Logo" width="200" />
 </p>
 
@@ -36,7 +36,7 @@ hero/
 Watch a quick demo of the application in action:
 
 <p align="center">
-  <video src="docs/Demo.mp4" controls width="600">Your browser does not support the video tag.</video>
+	<a href="docs/Demo.mp4">▶️ Watch Demo Video</a>
 </p>
 
 ## Requirements
