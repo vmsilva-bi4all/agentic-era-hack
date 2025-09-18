@@ -35,8 +35,16 @@ local-backend:
 
 # Set up development environment resources using Terraform
 setup-dev-env:
-		PROJECT_ID=$$(gcloud config get-value project) && \
-		(cd deployment/terraform/dev && terraform init && terraform apply --var-file vars/env.tfvars --var dev_project_id=$$PROJECT_ID --auto-approve)
+	@echo "============================================================================================="
+	@echo "| 🚫 Option Removed!                                                                        |"
+	@echo "|                                                                                           |"
+	@echo "| ❗ There is no dev environment available, so, the setup-dev-env target has been removed.  |"
+	@echo "|                                                                                           |"
+	@echo "|  Real heroes test their code in production! Dev is for wimps!                             |"
+	@echo "|                                                                                           |"
+	@echo "============================================================================================="
+ 	#PROJECT_ID=$$(gcloud config get-value project) && \
+	#	(cd deployment/terraform/dev && terraform init && terraform apply --var-file vars/env.tfvars --var dev_project_id=$$PROJECT_ID --auto-approve)
 		
 # 		# Minimal database initialization step
 # 		DB_IP=$$(terraform -chdir=deployment/terraform output -raw hero_postgres_instance_ip 2>/dev/null || echo "")
