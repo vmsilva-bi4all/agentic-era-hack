@@ -91,7 +91,7 @@ class OpeningsManagerTools:
                         return {"status": "error", "message": "No name provided."}
                     opening = cur.fetchone()
                     if opening is None:
-                        return {"status": "error", "message": "Job opening not found."}
+                        return {"status": "warning", "message": "Job opening not found."}
                     return {
                         "status": "success",
                         "id": opening[0],
@@ -122,7 +122,7 @@ class OpeningsManagerTools:
                     print(f"Found {len(openings)} openings.")
 
                     if not openings:
-                        return {"status": "error", "message": "No job openings found."}
+                        return {"status": "warning", "message": "No job openings found."}
 
                     jobs = [
                         {
