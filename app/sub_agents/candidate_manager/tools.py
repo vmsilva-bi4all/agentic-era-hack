@@ -96,7 +96,7 @@ class CandidateManagerTools:
                     cur.execute("SELECT name, email, content FROM human_resources.candidates;")
                     rows = cur.fetchall()
                     if not rows:
-                        return {"status": "error", "message": "No candidates found."}
+                        return {"status": "warning", "message": "No candidates found."}
                     candidates = [{"candidate name": row[0], "candidate email": row[1], "cv content": row[2]} for row in rows]
                     return {"status": "success", "candidates": candidates}
         except Exception as e:
@@ -126,7 +126,7 @@ class CandidateManagerTools:
                     rows = cur.fetchall()
 
                     if not rows:
-                        return {"status": "error", "message": "No candidates found."}
+                        return {"status": "warning", "message": "No candidates found."}
                     elif len(rows) > 1:
                         return {"status": "warning", "message": "Multiple candidates found. Full name or email required."}
 
@@ -191,7 +191,7 @@ class CandidateManagerTools:
                     rows = cur.fetchall()
 
                     if not rows:
-                        return {"status": "error", "message": "Candidate not found."}
+                        return {"status": "warning", "message": "Candidate not found."}
                     elif len(rows) > 1:
                         return {"status": "warning", "message": "Multiple CVs found. Full name or email required."}
 
@@ -219,7 +219,7 @@ class CandidateManagerTools:
                     )
                     row = cur.fetchone()
                     if not row:
-                        return {"status": "error", "message": "CV not found."}
+                        return {"status": "warning", "message": "CV not found."}
                     return {"status": "success", "candidate name": row[0], "candidate email": row[1], "candidate content": row[2]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
