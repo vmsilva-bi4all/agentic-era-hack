@@ -1,11 +1,12 @@
 import os
-#import google.auth
+
+# import google.auth
 from google.adk.agents import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
 
 # Configure Google Cloud authentication and environment
-#_, project_id = google.auth.default()
-#os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
+# _, project_id = google.auth.default()
+# os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "us-central1")
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
 
@@ -19,11 +20,7 @@ MODEL = "gemini-2.5-flash"
 hr_coordinator = LlmAgent(
     name="hr_coordinator",
     model=MODEL,
-    description=(
-        "guide users through a structured process to manage human resources tasks. "
-        "orchestrate a series of expert sub-agents to store and retrieve CVs and job offers, "
-        "and find the best matches between them."
-    ),
+    description=("guide users through a structured process to manage human resources tasks. " "orchestrate a series of expert sub-agents to store and retrieve CVs and job offers, " "and find the best matches between them."),
     instruction=prompt.HR_COORDINATOR_PROMPT,
     output_key="hr_coordinator_output",
     tools=[
