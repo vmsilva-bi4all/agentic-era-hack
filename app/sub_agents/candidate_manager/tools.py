@@ -17,7 +17,16 @@ class CandidateManagerTools:
         }
 
     def _get_secret(self, secret_id: str, version_id: str = "latest") -> str:
-        """Retrieves a secret from Google Secret Manager."""
+        """Retrieves a secret from Google Secret Manager.
+        
+        Args:
+            secret_id (str): The ID of the secret to retrieve.
+            version_id (str): The version of the secret to retrieve.
+        
+        Returns:
+            str: The value of the secret.
+        """
+
         try:
             from google.cloud import secretmanager
             from google.api_core import exceptions
@@ -38,8 +47,8 @@ class CandidateManagerTools:
     def _get_connection(self):
         return psycopg2.connect(**self.db_params)
 
-    def add_cv(self, candidate_name: str, candidate_email: str, candidate_content: str) -> Dict[str, Any]:
-        """Adds a new CV to the database.
+    def add_candidate(self, candidate_name: str, candidate_email: str, candidate_content: str) -> Dict[str, Any]:
+        """Adds a new candidate to the database.
         
         Args:
             candidate_name (str): The candidate name of the CV.
@@ -62,12 +71,12 @@ class CandidateManagerTools:
                     if email_exists:
                         cur.execute(
                             "UPDATE human_resources.candidates SET content = %s WHERE LOWER(email) = LOWER(%s) RETURNING name, email, content;",
-                            (candidate_content, candidate_email),
+                            (candidate_content, candidate_email,),
                         )
                     else:
                         cur.execute(
                             "INSERT INTO human_resources.candidates (name, email, content) VALUES (%s, %s, %s) RETURNING name, email, content;",
-                            (candidate_name, candidate_email, candidate_content),
+                            (candidate_name, candidate_email, candidate_content,),
                         )
                     cv = cur.fetchone()
                     conn.commit()
@@ -99,13 +108,12 @@ class CandidateManagerTools:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def get_cv_by_candidate_name_and_email(self, candidate_name: str, candidate_email: str) -> Dict[str, Any]:
-        """Retrieves a CV from the database using the candidate name and email.
-        
+    def delete_candidate_by_name(self, candidate_name: str) -> Dict[str, Any]:
+        """Deletes a candidate from the database using the candidate name.
+
         Args:
-            candidate_name: (str): The candidate name of the CV.
-            candidate_email: (str): The candidate email of the CV.
-        
+            candidate_name (str): The candidate name of the CV.
+
         Returns:
             Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
         """
@@ -114,30 +122,61 @@ class CandidateManagerTools:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT name, email, content FROM human_resources.candidates WHERE (LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s)) AND LOWER(email) = LOWER(%s);",
-                        (f"%{candidate_name}%", f"%{candidate_name}", f"{candidate_name}%", candidate_email,),
+                        "SELECT name FROM human_resources.candidates WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
+                        (f"%{candidate_name}%", f"%{candidate_name}", f"{candidate_name}%",),
                     )
                     rows = cur.fetchall()
 
                     if not rows:
-                        return {"status": "error", "message": "CV not found."}
-                    if len(rows) > 1:
-                        return {"status": "warning", "message": "Multiple CVs found. Full name required."}
-                    
-                    candidate = rows[0]
-                    return {"status": "success", "candidate_name": candidate[0], "candidate_email": candidate[1], "cv_content": candidate[2]}
+                        return {"status": "error", "message": "No candidates found."}
+                    elif len(rows) > 1:
+                        return {"status": "warning", "message": "Multiple candidates found. Full name or email required."}
+
+                    cur.execute(
+                        "DELETE FROM human_resources.candidates WHERE LOWER(name) = LOWER(%s) RETURNING name, email, content;",
+                        (candidate_name,),
+                    )
+                    cv = cur.fetchone()
+                    conn.commit()
+                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+        except psycopg2.IntegrityError:
+            return {"status": "error", "message": "A CV with this candidate name already exists."}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def get_cv_by_candidate_name(self, candidate_name: str) -> Dict[str, Any]:
-        """Retrieves a CV from the database using the candidate name.
+    def delete_candidate_by_email(self, candidate_email: str) -> Dict[str, Any]:
+        """Deletes a candidate from the database using the candidate email.
+
+        Args:
+            candidate_email (str): The candidate email of the CV.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s) RETURNING name, email, content;",
+                        (candidate_email,),
+                    )
+                    cv = cur.fetchone()
+                    conn.commit()
+                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+        except psycopg2.IntegrityError:
+            return {"status": "error", "message": "A CV with this candidate email already exists."}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_candidate_by_name(self, candidate_name: str) -> Dict[str, Any]:
+        """Retrieves a candidate from the database using the candidate name.
         
         Args:
             candidate_name (str): The candidate name of the CV.
         
         Returns:
-            Dict[str, Any]: A dictionary containing the status of the operation, 
-                            the candidate name, the candidate email, and the CV content.
+            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
         """
 
         try:
@@ -150,17 +189,17 @@ class CandidateManagerTools:
                     rows = cur.fetchall()
 
                     if not rows:
-                        return {"status": "error", "message": "CV not found."}
-                    if len(rows) > 1:
-                        return {"status": "warning", "message": "Multiple CVs found. Full name required."}
+                        return {"status": "error", "message": "Candidate not found."}
+                    elif len(rows) > 1:
+                        return {"status": "warning", "message": "Multiple CVs found. Full name or email required."}
                     
                     candidate = rows[0]
                     return {"status": "success", "candidate_name": candidate[0], "candidate_email": candidate[1], "cv_content": candidate[2]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def get_cv_by_candidate_email(self, candidate_email: str) -> Dict[str, Any]:
-        """Retrieves a CV from the database using the candidate email.
+    def get_candidate_by_email(self, candidate_email: str) -> Dict[str, Any]:
+        """Retrieves a candidate from the database using the candidate email.
         
         Args:
             candidate_email: (str): The candidate email of the CV.
@@ -180,107 +219,6 @@ class CandidateManagerTools:
                     if not row:
                         return {"status": "error", "message": "CV not found."}
                     return {"status": "success", "candidate name": row[0], "candidate email": row[1], "candidate content": row[2]}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    def get_candidates(self) -> Dict[str, Any]:
-        """Get all the candidates.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the status of the operation and a list of candidates, where each candidate has a name, email, and CV content.
-        """
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT name, email, content FROM human_resources.candidates;")
-                    rows = cur.fetchall()
-
-                    if not rows:
-                        return {"status": "error", "message": "No candidates found."}
-
-                    candidates: List[Dict[str, str]] = [
-                        {"candidate name": row[0], "candidate email": row[1], "cv content": row[2]}
-                        for row in rows
-                    ]
-
-                    return {"status": "success", "candidates": candidates}
-
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    def get_cv_by_candidate_name_and_email(self, candidate_name: str, candidate_email: str) -> Dict[str, Any]:
-        """Retrieves a CV from the database using the candidate name and email.
-        
-        Args:
-            candidate_name: (str): The candidate name of the CV.
-            candidate_email: (str): The candidate email of the CV.
-        
-        Returns:
-            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
-        """
-
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                        cur.execute(
-                            "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) = LOWER(%s) AND LOWER(email) = LOWER(%s);",
-                            (candidate_name, candidate_email),
-                        )
-                        cv = cur.fetchone()
-                        conn.commit()
-                        if cv is None:
-                            return {"status": "error", "message": "CV not found."}
-                        return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    def get_cv_by_candidate_name(self, candidate_name: str) -> Dict[str, Any]:
-        """Retrieves a CV from the database using the candidate name.
-        
-        Args:
-            candidate_name: (str): The candidate name of the CV.
-        
-        Returns:
-            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
-        """
-
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                        cur.execute(
-                            "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) = LOWER(%s);",
-                            (candidate_name,),
-                        )
-                        cv = cur.fetchone()
-                        conn.commit()
-                        if cv is None:
-                            return {"status": "error", "message": "CV not found."}
-                        return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    def get_cv_by_candidate_email(self, candidate_email: str) -> Dict[str, Any]:
-        """Retrieves a CV from the database using the candidate email.
-        
-        Args:
-            candidate_email: (str): The candidate email of the CV.
-        
-        Returns:
-            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
-        """
-
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s);",
-                        (candidate_email,),
-                    )
-                    cv = cur.fetchone()
-                    conn.commit()
-                    if cv is None:
-                        return {"status": "error", "message": "CV not found."}
-                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "candidate content": cv[2]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
