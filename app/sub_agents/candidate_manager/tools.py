@@ -1,47 +1,37 @@
 from __future__ import annotations
-import os
 import psycopg2
-from typing import Any, Dict, List
+from typing import Any, Dict
+from google.cloud import secretmanager
+import google.auth
+
 
 class CandidateManagerTools:
     """Tools for the Candidate Manager Agent."""
 
     def __init__(self):
-        self.project_id = "qwiklabs-gcp-04-6db254dd6d5c"
+        try:
+            _, project_id = google.auth.default()
+        except google.auth.exceptions.DefaultCredentialsError:
+            project_id = None
+
         self.db_params = {
-            "host": self._get_secret("hero-cloudsql-host"),
-            "port": self._get_secret("hero-cloudsql-port"),
-            "dbname": self._get_secret("hero-cloudsql-dbname"),
-            "user": self._get_secret("hero-cloudsql-user"),
-            "password": self._get_secret("hero-cloudsql-password"),
+            "host": self._get_secret(project_id, "hero-cloudsql-host"),
+            "port": self._get_secret(project_id, "hero-cloudsql-port"),
+            "dbname": self._get_secret(project_id, "hero-cloudsql-dbname"),
+            "user": self._get_secret(project_id, "hero-cloudsql-user"),
+            "password": self._get_secret(project_id, "hero-cloudsql-password"),
         }
 
-    def _get_secret(self, secret_id: str, version_id: str = "latest") -> str:
-        """Retrieves a secret from Google Secret Manager.
-        
-        Args:
-            secret_id (str): The ID of the secret to retrieve.
-            version_id (str): The version of the secret to retrieve.
-        
-        Returns:
-            str: The value of the secret.
-        """
-
-        try:
-            from google.cloud import secretmanager
-            from google.api_core import exceptions
-        except ImportError:
-            raise ImportError("google-cloud-secret-manager is required to fetch secrets.")
+    def _get_secret(self, project_id: str, secret_id: str, version_id: str = "latest") -> str:
+        """Retrieves a secret from Google Cloud Secret Manager."""
         try:
             client = secretmanager.SecretManagerServiceClient()
-            name = f"projects/{self.project_id}/secrets/{secret_id}/versions/{version_id}"
+            name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
             response = client.access_secret_version(name=name)
             return response.payload.data.decode("UTF-8")
-        except exceptions.NotFound:
-            print(f"Secret '{secret_id}' not found.")
-            return None
         except Exception as e:
-            print(f"Error accessing secret '{secret_id}': {e}")
+            # Handle exceptions (e.g., secret not found, permission errors)
+            print(f"Error accessing secret {secret_id}: {e}")
             return None
 
     def _get_connection(self):
@@ -49,12 +39,12 @@ class CandidateManagerTools:
 
     def add_candidate(self, candidate_name: str, candidate_email: str, candidate_content: str) -> Dict[str, Any]:
         """Adds a new candidate to the database.
-        
+
         Args:
             candidate_name (str): The candidate name of the CV.
             candidate_email (str): The candidate email of the CV.
             candidate_content (str): The content of the CV.
-        
+
         Returns:
             Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
         """
@@ -71,12 +61,19 @@ class CandidateManagerTools:
                     if email_exists:
                         cur.execute(
                             "UPDATE human_resources.candidates SET content = %s WHERE LOWER(email) = LOWER(%s) RETURNING name, email, content;",
-                            (candidate_content, candidate_email,),
+                            (
+                                candidate_content,
+                                candidate_email,
+                            ),
                         )
                     else:
                         cur.execute(
                             "INSERT INTO human_resources.candidates (name, email, content) VALUES (%s, %s, %s) RETURNING name, email, content;",
-                            (candidate_name, candidate_email, candidate_content,),
+                            (
+                                candidate_name,
+                                candidate_email,
+                                candidate_content,
+                            ),
                         )
                     cv = cur.fetchone()
                     conn.commit()
@@ -100,10 +97,7 @@ class CandidateManagerTools:
                     rows = cur.fetchall()
                     if not rows:
                         return {"status": "error", "message": "No candidates found."}
-                    candidates = [
-                        {"candidate name": row[0], "candidate email": row[1], "cv content": row[2]}
-                        for row in rows
-                    ]
+                    candidates = [{"candidate name": row[0], "candidate email": row[1], "cv content": row[2]} for row in rows]
                     return {"status": "success", "candidates": candidates}
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -123,7 +117,11 @@ class CandidateManagerTools:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT name FROM human_resources.candidates WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
-                        (f"%{candidate_name}%", f"%{candidate_name}", f"{candidate_name}%",),
+                        (
+                            f"%{candidate_name}%",
+                            f"%{candidate_name}",
+                            f"{candidate_name}%",
+                        ),
                     )
                     rows = cur.fetchall()
 
@@ -171,10 +169,10 @@ class CandidateManagerTools:
 
     def get_candidate_by_name(self, candidate_name: str) -> Dict[str, Any]:
         """Retrieves a candidate from the database using the candidate name.
-        
+
         Args:
             candidate_name (str): The candidate name of the CV.
-        
+
         Returns:
             Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
         """
@@ -184,7 +182,11 @@ class CandidateManagerTools:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
-                        (f"%{candidate_name}%", f"%{candidate_name}", f"{candidate_name}%",)
+                        (
+                            f"%{candidate_name}%",
+                            f"%{candidate_name}",
+                            f"{candidate_name}%",
+                        ),
                     )
                     rows = cur.fetchall()
 
@@ -192,7 +194,7 @@ class CandidateManagerTools:
                         return {"status": "error", "message": "Candidate not found."}
                     elif len(rows) > 1:
                         return {"status": "warning", "message": "Multiple CVs found. Full name or email required."}
-                    
+
                     candidate = rows[0]
                     return {"status": "success", "candidate_name": candidate[0], "candidate_email": candidate[1], "cv_content": candidate[2]}
         except Exception as e:
@@ -200,10 +202,10 @@ class CandidateManagerTools:
 
     def get_candidate_by_email(self, candidate_email: str) -> Dict[str, Any]:
         """Retrieves a candidate from the database using the candidate email.
-        
+
         Args:
             candidate_email: (str): The candidate email of the CV.
-        
+
         Returns:
             Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
         """
@@ -221,5 +223,6 @@ class CandidateManagerTools:
                     return {"status": "success", "candidate name": row[0], "candidate email": row[1], "candidate content": row[2]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
+
 
 candidate_manager_tools = CandidateManagerTools()
