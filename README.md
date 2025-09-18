@@ -1,3 +1,7 @@
+<p align="center">
+	<img src="docs/agent.png" alt="Project Logo" width="200" />
+</p>
+
 # hero
 
 A base ReAct agent built with Google's Agent Development Kit (ADK)
@@ -21,6 +25,19 @@ hero/
 ├── GEMINI.md            # AI-assisted development guide
 └── pyproject.toml       # Project dependencies and configuration
 ```
+## Architecture Diagram
+
+<p align="center">
+	<img src="docs/Diagram.png" alt="Architecture Diagram" width="600" />
+</p>
+
+## Demo
+
+Watch a quick demo of the application in action:
+
+<p align="center">
+  <video src="docs/Demo.mp4" controls width="600">Your browser does not support the video tag.</video>
+</p>
 
 ## Requirements
 
