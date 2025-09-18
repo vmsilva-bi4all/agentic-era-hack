@@ -46,12 +46,12 @@ class EvaluatorTools:
         """Retrieves all candidates from the database."""
         with self._get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT name, cv_text FROM human_resources.candidates")
+                cur.execute("SELECT name, content FROM human_resources.candidates")
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No candidates found."}
                 candidates = [
-                    {"candidate_name": row[0], "cv_text": row[1]}
+                    {"candidate_name": row[0], "content": row[1]}
                     for row in rows
                 ]
                 return {"status": "success", "candidates": candidates}
@@ -75,14 +75,14 @@ class EvaluatorTools:
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT name, cv_text FROM human_resources.candidates WHERE name = ANY(%s)",
+                    "SELECT name, content FROM human_resources.candidates WHERE name = ANY(%s)",
                     (names,),
                 )
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No candidates found."}
                 candidates = [
-                    {"candidate_name": row[0], "cv_text": row[1]}
+                    {"candidate_name": row[0], "content": row[1]}
                     for row in rows
                 ]
                 return {"status": "success", "candidates": candidates}
@@ -92,14 +92,14 @@ class EvaluatorTools:
         with self._get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT name, cv_text FROM human_resources.candidates WHERE email = ANY(%s)",
+                    "SELECT name, content FROM human_resources.candidates WHERE email = ANY(%s)",
                     (emails,),
                 )
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No candidates found."}
                 candidates = [
-                    {"candidate_name": row[0], "cv_text": row[1]}
+                    {"candidate_name": row[0], "content": row[1]}
                     for row in rows
                 ]
                 return {"status": "success", "candidates": candidates}
