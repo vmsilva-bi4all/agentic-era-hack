@@ -114,11 +114,16 @@ class OpeningsManagerTools:
         """
 
         try:
+            print("Listing all job openings...")
+
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT id, name, job_description, evaluation_criteria, created_at, updated_at FROM human_resources.openings;")
                     openings = cur.fetchall()
                     conn.commit()
+
+                    print(f"Found {len(openings)} openings.")
+
                     return [
                         {
                             "id": opening[0],
