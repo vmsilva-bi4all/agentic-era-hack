@@ -1,104 +1,286 @@
+from __future__ import annotations
 import os
 import psycopg2
-from typing import Union, Dict, List
-from google.cloud import secretmanager
-import google.auth
+from typing import Any, Dict, List
 
 class CandidateManagerTools:
     """Tools for the Candidate Manager Agent."""
 
     def __init__(self):
-        try:
-            _, project_id = google.auth.default()
-        except google.auth.exceptions.DefaultCredentialsError:
-            project_id = None
-
+        self.project_id = "qwiklabs-gcp-04-6db254dd6d5c"
         self.db_params = {
-            "host": self._get_secret(project_id, "hero-cloudsql-host"),
-            "port": self._get_secret(project_id, "hero-cloudsql-port"),
-            "dbname": "postgres",
-            "user": self._get_secret(project_id, "hero-cloudsql-user"),
-            "password": self._get_secret(project_id, "hero-cloudsql-password"),
+            "host": self._get_secret("hero-cloudsql-host"),
+            "port": self._get_secret("hero-cloudsql-port"),
+            "dbname": self._get_secret("hero-cloudsql-dbname"),
+            "user": self._get_secret("hero-cloudsql-user"),
+            "password": self._get_secret("hero-cloudsql-password"),
         }
 
-    def _get_secret(self, project_id: str, secret_id: str, version_id: str = "latest") -> str:
-        """Retrieves a secret from Google Cloud Secret Manager."""
+    def _get_secret(self, secret_id: str, version_id: str = "latest") -> str:
+        """Retrieves a secret from Google Secret Manager."""
+        try:
+            from google.cloud import secretmanager
+            from google.api_core import exceptions
+        except ImportError:
+            raise ImportError("google-cloud-secret-manager is required to fetch secrets.")
         try:
             client = secretmanager.SecretManagerServiceClient()
-            name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
+            name = f"projects/{self.project_id}/secrets/{secret_id}/versions/{version_id}"
             response = client.access_secret_version(name=name)
             return response.payload.data.decode("UTF-8")
+        except exceptions.NotFound:
+            print(f"Secret '{secret_id}' not found.")
+            return None
         except Exception as e:
-            # Handle exceptions (e.g., secret not found, permission errors)
-            print(f"Error accessing secret {secret_id}: {e}")
+            print(f"Error accessing secret '{secret_id}': {e}")
             return None
 
     def _get_connection(self):
         return psycopg2.connect(**self.db_params)
 
-    def add_cv(self, name: str, email: str, content: str) -> Dict[str, str]:
+    def add_cv(self, candidate_name: str, candidate_email: str, candidate_content: str) -> Dict[str, Any]:
         """Adds a new CV to the database.
         
         Args:
-            name (str): The name of the CV.
-            email (str): The email of the CV.
-            content (str): The content of the CV.
+            candidate_name (str): The candidate name of the CV.
+            candidate_email (str): The candidate email of the CV.
+            candidate_content (str): The content of the CV.
         
         Returns:
-            Dict[str, str]: A dictionary containing the status of the operation.
+            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
         """
 
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "INSERT INTO human_resources.candidates (name, email, content) VALUES (%s, %s, %s) RETURNING name, email, content;",
-                        (name, email, content),
+                        "SELECT email FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s);",
+                        (candidate_email,),
                     )
+                    email_exists = cur.fetchone()
+                    conn.commit()
+                    if email_exists:
+                        cur.execute(
+                            "UPDATE human_resources.candidates SET content = %s WHERE LOWER(email) = LOWER(%s) RETURNING name, email, content;",
+                            (candidate_content, candidate_email),
+                        )
+                    else:
+                        cur.execute(
+                            "INSERT INTO human_resources.candidates (name, email, content) VALUES (%s, %s, %s) RETURNING name, email, content;",
+                            (candidate_name, candidate_email, candidate_content),
+                        )
                     cv = cur.fetchone()
                     conn.commit()
-                    return {"status": "success", "name": cv[0], "email": cv[1], "content": cv[2]}
+                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
         except psycopg2.IntegrityError:
-            return {"status": "error", "message": "A CV with this name and email already exists."}
+            return {"status": "error", "message": "A CV with this candidate name and candidate email already exists."}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def get_cv(self, name: Union[None, str] = None, email: Union[None, str] = None) -> Dict[str, str]:
-        """Retrieves a CV from the database.
-        
-        Args:
-            name: (Union[None, str]): The name of the CV.
-            email: (Union[None, str]): The email of the CV.
-        
+    def get_candidates(self) -> Dict[str, Any]:
+        """Get all the candidates.
+
         Returns:
-            Dict[str, str]: A dictionary containing the CV.
+            Dict[str, Any]: A dictionary containing the status of the operation and a list of candidates, where each candidate has a name, email, and CV content.
         """
 
         try:
             with self._get_connection() as conn:
                 with conn.cursor() as cur:
-                    if name and email:
+                    cur.execute("SELECT name, email, content FROM human_resources.candidates;")
+                    rows = cur.fetchall()
+                    if not rows:
+                        return {"status": "error", "message": "No candidates found."}
+                    candidates = [
+                        {"candidate name": row[0], "candidate email": row[1], "cv content": row[2]}
+                        for row in rows
+                    ]
+                    return {"status": "success", "candidates": candidates}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_cv_by_candidate_name_and_email(self, candidate_name: str, candidate_email: str) -> Dict[str, Any]:
+        """Retrieves a CV from the database using the candidate name and email.
+        
+        Args:
+            candidate_name: (str): The candidate name of the CV.
+            candidate_email: (str): The candidate email of the CV.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT name, email, content FROM human_resources.candidates WHERE (LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s)) AND LOWER(email) = LOWER(%s);",
+                        (f"%{candidate_name}%", f"%{candidate_name}", f"{candidate_name}%", candidate_email,),
+                    )
+                    rows = cur.fetchall()
+
+                    if not rows:
+                        return {"status": "error", "message": "CV not found."}
+                    if len(rows) > 1:
+                        return {"status": "warning", "message": "Multiple CVs found. Full name required."}
+                    
+                    candidate = rows[0]
+                    return {"status": "success", "candidate_name": candidate[0], "candidate_email": candidate[1], "cv_content": candidate[2]}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_cv_by_candidate_name(self, candidate_name: str) -> Dict[str, Any]:
+        """Retrieves a CV from the database using the candidate name.
+        
+        Args:
+            candidate_name (str): The candidate name of the CV.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation, 
+                            the candidate name, the candidate email, and the CV content.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
+                        (f"%{candidate_name}%", f"%{candidate_name}", f"{candidate_name}%",)
+                    )
+                    rows = cur.fetchall()
+
+                    if not rows:
+                        return {"status": "error", "message": "CV not found."}
+                    if len(rows) > 1:
+                        return {"status": "warning", "message": "Multiple CVs found. Full name required."}
+                    
+                    candidate = rows[0]
+                    return {"status": "success", "candidate_name": candidate[0], "candidate_email": candidate[1], "cv_content": candidate[2]}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_cv_by_candidate_email(self, candidate_email: str) -> Dict[str, Any]:
+        """Retrieves a CV from the database using the candidate email.
+        
+        Args:
+            candidate_email: (str): The candidate email of the CV.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s);",
+                        (candidate_email,),
+                    )
+                    row = cur.fetchone()
+                    if not row:
+                        return {"status": "error", "message": "CV not found."}
+                    return {"status": "success", "candidate name": row[0], "candidate email": row[1], "candidate content": row[2]}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_candidates(self) -> Dict[str, Any]:
+        """Get all the candidates.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation and a list of candidates, where each candidate has a name, email, and CV content.
+        """
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT name, email, content FROM human_resources.candidates;")
+                    rows = cur.fetchall()
+
+                    if not rows:
+                        return {"status": "error", "message": "No candidates found."}
+
+                    candidates: List[Dict[str, str]] = [
+                        {"candidate name": row[0], "candidate email": row[1], "cv content": row[2]}
+                        for row in rows
+                    ]
+
+                    return {"status": "success", "candidates": candidates}
+
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_cv_by_candidate_name_and_email(self, candidate_name: str, candidate_email: str) -> Dict[str, Any]:
+        """Retrieves a CV from the database using the candidate name and email.
+        
+        Args:
+            candidate_name: (str): The candidate name of the CV.
+            candidate_email: (str): The candidate email of the CV.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
                         cur.execute(
-                            "SELECT name, email, content FROM human_resources.candidates WHERE name = %s AND email = %s;",
-                            (name, email),
+                            "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) = LOWER(%s) AND LOWER(email) = LOWER(%s);",
+                            (candidate_name, candidate_email),
                         )
-                    elif email:
+                        cv = cur.fetchone()
+                        conn.commit()
+                        if cv is None:
+                            return {"status": "error", "message": "CV not found."}
+                        return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_cv_by_candidate_name(self, candidate_name: str) -> Dict[str, Any]:
+        """Retrieves a CV from the database using the candidate name.
+        
+        Args:
+            candidate_name: (str): The candidate name of the CV.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
                         cur.execute(
-                            "SELECT name, email, content FROM human_resources.candidates WHERE email = %s;",
-                            (email),
+                            "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) = LOWER(%s);",
+                            (candidate_name,),
                         )
-                    elif name:
-                        cur.execute(
-                            "SELECT name, email, content FROM human_resources.candidates WHERE name = %s;",
-                            (name),
-                        )
-                    else:
-                        return {"status": "error", "message": "No name or email provided."}
+                        cv = cur.fetchone()
+                        conn.commit()
+                        if cv is None:
+                            return {"status": "error", "message": "CV not found."}
+                        return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def get_cv_by_candidate_email(self, candidate_email: str) -> Dict[str, Any]:
+        """Retrieves a CV from the database using the candidate email.
+        
+        Args:
+            candidate_email: (str): The candidate email of the CV.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation, the candidate name, the candidate email, and the CV content.
+        """
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s);",
+                        (candidate_email,),
+                    )
                     cv = cur.fetchone()
                     conn.commit()
                     if cv is None:
                         return {"status": "error", "message": "CV not found."}
-                    return {"status": "success", "name": cv[0], "email": cv[1], "content": cv[2]}
+                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "candidate content": cv[2]}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 

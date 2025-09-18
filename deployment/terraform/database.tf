@@ -1,11 +1,15 @@
 
-resource "google_sql_database_instance" "hero_postgres" {
-  name             = "hero-postgres-instance"
-  database_version = "POSTGRES_14"
+resource "google_sql_database_instance" "main" {
+  for_each = local.deploy_project_ids
+  
+  project          = each.value
+  name             = "hero-db-instance"
+  database_version = "POSTGRES_17"
   region           = var.region
 
   settings {
     tier = "db-f1-micro"
+    edition = "ENTERPRISE"
     ip_configuration {
       ipv4_enabled = true
       authorized_networks {
@@ -17,16 +21,54 @@ resource "google_sql_database_instance" "hero_postgres" {
 }
 
 resource "google_sql_database" "hero_db" {
-  name     = "hero_human_resources"
-  instance = google_sql_database_instance.hero_postgres.name
+  for_each = local.deploy_project_ids
+  
+  project  = each.value 
+  name     = "hero_db"
+  instance = google_sql_database_instance.main[each.key].name
 }
 
+resource "google_sql_user" "hero_user" {
+  for_each = local.deploy_project_ids
+
+  project  = each.value
+  #name     = "hero_db_user"
+  name     = google_secret_manager_secret_version.cloudsql_user[each.key].secret_data
+  instance = google_sql_database_instance.main[each.key].name
+  #password = random_password.cloudsql_password.result
+  password = google_secret_manager_secret_version.cloudsql_password[each.key].secret_data
+}
+
+# Secret - User
+resource "google_secret_manager_secret" "cloudsql_user" {
+  for_each = local.deploy_project_ids
+
+  project  = each.value
+  secret_id = "hero-cloudsql-user"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "cloudsql_user" {
+  for_each = local.deploy_project_ids
+  
+  secret      = google_secret_manager_secret.cloudsql_user[each.key].id
+  secret_data = "hero_db"
+}
+
+## Secret - Password 
 resource "random_password" "cloudsql_password" {
+  for_each = local.deploy_project_ids
+
   length  = 16
   special = true
 }
 
 resource "google_secret_manager_secret" "cloudsql_password" {
+  for_each = local.deploy_project_ids
+  
+  project  = each.value
   secret_id = "hero-cloudsql-password"
   replication {
     auto {}
@@ -34,20 +76,62 @@ resource "google_secret_manager_secret" "cloudsql_password" {
 }
 
 resource "google_secret_manager_secret_version" "cloudsql_password" {
-  secret      = google_secret_manager_secret.cloudsql_password.id
-  secret_data = random_password.cloudsql_password.result
+  for_each = local.deploy_project_ids
+
+  secret      = google_secret_manager_secret.cloudsql_password[each.key].id
+  secret_data = random_password.cloudsql_password[each.key].result
 }
 
-resource "google_sql_user" "hero_user" {
-  name     = "hero_user"
-  instance = google_sql_database_instance.hero_postgres.name
-  password = random_password.cloudsql_password.result
+## Secret - Host 
+resource "google_secret_manager_secret" "cloudsql_host" {
+  for_each = local.deploy_project_ids
+
+  project  = each.value
+  secret_id = "hero-cloudsql-host"
+  replication {
+    auto {}
+  }
 }
 
-output "hero_postgres_instance_connection_name" {
-  value = google_sql_database_instance.hero_postgres.connection_name
+resource "google_secret_manager_secret_version" "cloudsql_host" {
+  for_each = local.deploy_project_ids
+
+  secret      = google_secret_manager_secret.cloudsql_host[each.key].id
+  secret_data = google_sql_database_instance.main[each.key].public_ip_address
 }
 
-output "hero_postgres_instance_ip" {
-  value = google_sql_database_instance.hero_postgres.public_ip_address
+## Secret - Port 
+resource "google_secret_manager_secret" "cloudsql_port" {
+  for_each = local.deploy_project_ids
+
+  project  = each.value
+  secret_id = "hero-cloudsql-port"
+  replication {
+    auto {}
+  }
 }
+
+resource "google_secret_manager_secret_version" "cloudsql_port" {
+  for_each = local.deploy_project_ids
+
+  secret      = google_secret_manager_secret.cloudsql_port[each.key].id
+  secret_data = "5432"
+}
+
+# Output - External IPs for all environments
+output "hero_postgres_external_ips" {
+  description = "External IP addresses of the Cloud SQL instances for all environments"
+  value = {
+    for env, instance in google_sql_database_instance.main : env => instance.public_ip_address
+  }
+}
+
+output "hero_postgres_connection_names" {
+  description = "Connection names for all Cloud SQL instances"
+  value = {
+    for env, instance in google_sql_database_instance.main : env => instance.connection_name
+  }
+}
+
+
+
