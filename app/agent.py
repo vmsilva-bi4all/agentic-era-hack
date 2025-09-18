@@ -15,7 +15,7 @@ from .sub_agents.candidate_manager.candidate_manager import candidate_manager_ag
 from .sub_agents.opening_manager.opening_manager import opening_manager_agent
 from .sub_agents.evaluator.evaluator import evaluator_agent
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-2.5-pro"
 
 hr_coordinator = LlmAgent(
     name="hr_coordinator",
