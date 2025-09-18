@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import psycopg2
 from typing import Any, Dict, List
@@ -6,13 +7,33 @@ class CandidateManagerTools:
     """Tools for the Candidate Manager Agent."""
 
     def __init__(self):
+        self.project_id = "qwiklabs-gcp-04-6db254dd6d5c"
         self.db_params = {
-            "host": os.environ.get("DB_HOST"),
-            "port": os.environ.get("DB_PORT"),
-            "dbname": os.environ.get("DB_NAME"),
-            "user": os.environ.get("DB_USER"),
-            "password": os.environ.get("DB_PASSWORD"),
+            "host": self._get_secret("hero-cloudsql-host"),
+            "port": self._get_secret("hero-cloudsql-port"),
+            "dbname": self._get_secret("hero-cloudsql-dbname"),
+            "user": self._get_secret("hero-cloudsql-user"),
+            "password": self._get_secret("hero-cloudsql-password"),
         }
+
+    def _get_secret(self, secret_id: str, version_id: str = "latest") -> str:
+        """Retrieves a secret from Google Secret Manager."""
+        try:
+            from google.cloud import secretmanager
+            from google.api_core import exceptions
+        except ImportError:
+            raise ImportError("google-cloud-secret-manager is required to fetch secrets.")
+        try:
+            client = secretmanager.SecretManagerServiceClient()
+            name = f"projects/{self.project_id}/secrets/{secret_id}/versions/{version_id}"
+            response = client.access_secret_version(name=name)
+            return response.payload.data.decode("UTF-8")
+        except exceptions.NotFound:
+            print(f"Secret '{secret_id}' not found.")
+            return None
+        except Exception as e:
+            print(f"Error accessing secret '{secret_id}': {e}")
+            return None
 
     def _get_connection(self):
         return psycopg2.connect(**self.db_params)
