@@ -1,6 +1,6 @@
 import os
 import psycopg2
-from typing import Union, Dict, List
+from typing import Union, Dict, Any
 from google.cloud import secretmanager
 import google.auth
 
@@ -70,14 +70,14 @@ class OpeningsManagerTools:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def get_job_opening(self, name: Union[None, str] = None) -> Dict[str, str]:
+    def get_job_opening(self, name: Union[None, str] = None) -> Dict[str, Any]:
         """Retrieves a job opening from the database.
 
         Args:
             name: (Union[None, str]): The name of the job opening.
 
         Returns:
-            Dict[str, str]: A dictionary containing the job opening.
+            Dict[str, Any]: A dictionary containing the job opening.
         """
 
         try:
@@ -91,7 +91,6 @@ class OpeningsManagerTools:
                     else:
                         return {"status": "error", "message": "No name provided."}
                     opening = cur.fetchone()
-                    conn.commit()
                     if opening is None:
                         return {"status": "error", "message": "Job opening not found."}
                     return {
@@ -106,11 +105,11 @@ class OpeningsManagerTools:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def list_openings(self) -> List[Dict[str, str]]:
+    def list_openings(self) -> Dict[str, Any]:
         """Lists all job openings in the database.
 
         Returns:
-            List[Dict[str, str]]: A list of dictionaries, each containing a job opening.
+            Dict[str, Any]: A dictionary containing the status of the operation and a list of job openings.
         """
 
         try:
@@ -120,11 +119,13 @@ class OpeningsManagerTools:
                 with conn.cursor() as cur:
                     cur.execute("SELECT id, name, job_description, evaluation_criteria, created_at, updated_at FROM human_resources.openings;")
                     openings = cur.fetchall()
-                    conn.commit()
 
                     print(f"Found {len(openings)} openings.")
 
-                    return [
+                    if not openings:
+                        return {"status": "error", "message": "No job openings found."}
+
+                    jobs = [
                         {
                             "id": opening[0],
                             "name": opening[1],
@@ -135,8 +136,10 @@ class OpeningsManagerTools:
                         }
                         for opening in openings
                     ]
+
+                    return {"status": "success", "openings": jobs}
         except Exception as e:
-            return [{"status": "error", "message": str(e)}]
+            return {"status": "error", "message": str(e)}
 
     def delete_opening(self, id: int) -> Dict[str, str]:
         """Deletes a job opening from the database.
