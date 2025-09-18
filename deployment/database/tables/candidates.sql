@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS
     "id" SERIAL PRIMARY KEY,
     "name" VARCHAR(255),
     "email" VARCHAR(255),
-    "cv_text" TEXT,
+    "content" TEXT,
     "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
   );
