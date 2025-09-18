@@ -39,6 +39,36 @@ Install required packages and launch the local development environment:
 make install && make playground
 ```
 
+# Features: Agents & Sub-Agents
+
+This project implements a modular HR automation system using a main agent and specialized sub-agents. Below is a summary of the features:
+
+## Main Agent: HR Coordinator
+- Orchestrates HR tasks by delegating to sub-agents.
+- Routes requests for candidate management, job openings, and candidate evaluation.
+- Does not perform operations directly; acts as a smart router.
+
+## Sub-Agents
+
+### Candidate Manager Agent
+- Stores candidate CVs in the database.
+- Retrieves all candidate CVs, or by name/email.
+- Deletes candidate CVs by name/email.
+- Ensures data privacy and accuracy.
+
+### Opening Manager Agent
+- Adds new job openings to the database.
+- Retrieves specific job openings or lists all openings.
+- Deletes job openings by ID.
+- Handles job opening information with confidentiality.
+
+### Evaluator Agent
+- Retrieves all candidates and job openings.
+- Evaluates and matches candidates to job openings based on CV and job criteria.
+- Provides detailed explanations for matches or states when no match is found.
+
+All agents use Google ADK and interact with a PostgreSQL database, with secrets managed via Google Secret Manager.
+
 ## Commands
 
 | Command              | Description                                                                                 |
