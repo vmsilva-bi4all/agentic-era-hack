@@ -1,4 +1,3 @@
-import os
 import psycopg2
 from typing import Union, Dict, Any
 from google.cloud import secretmanager

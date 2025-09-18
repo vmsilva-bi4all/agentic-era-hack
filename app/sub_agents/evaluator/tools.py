@@ -1,42 +1,37 @@
 from __future__ import annotations
-import os
 import psycopg2
-from typing import Any, Dict, List
+from typing import Any, Dict
+from google.cloud import secretmanager
+import google.auth
+
 
 class EvaluatorTools:
     """Tools for the Evaluator Agent."""
 
     def __init__(self):
-        self.project_id = "qwiklabs-gcp-04-6db254dd6d5c"
+        try:
+            _, project_id = google.auth.default()
+        except google.auth.exceptions.DefaultCredentialsError:
+            project_id = None
+
         self.db_params = {
-            "host": self._get_secret("hero-cloudsql-host"),
-            "port": self._get_secret("hero-cloudsql-port"),
-            "dbname": self._get_secret("hero-cloudsql-dbname"),
-            "user": self._get_secret("hero-cloudsql-user"),
-            "password": self._get_secret("hero-cloudsql-password"),
+            "host": self._get_secret(project_id, "hero-cloudsql-host"),
+            "port": self._get_secret(project_id, "hero-cloudsql-port"),
+            "dbname": self._get_secret(project_id, "hero-cloudsql-dbname"),
+            "user": self._get_secret(project_id, "hero-cloudsql-user"),
+            "password": self._get_secret(project_id, "hero-cloudsql-password"),
         }
 
-    def _get_secret(self, secret_id: str, version_id: str = "latest") -> str:
-        """Retrieves a secret from Google Secret Manager."""
-        try:
-            from google.cloud import secretmanager
-            from google.api_core import exceptions
-        except ImportError:
-            raise ImportError(
-                "google-cloud-secret-manager is required to fetch secrets."
-            )
+    def _get_secret(self, project_id: str, secret_id: str, version_id: str = "latest") -> str:
+        """Retrieves a secret from Google Cloud Secret Manager."""
         try:
             client = secretmanager.SecretManagerServiceClient()
-            name = (
-                f"projects/{self.project_id}/secrets/{secret_id}/versions/{version_id}"
-            )
+            name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
             response = client.access_secret_version(name=name)
             return response.payload.data.decode("UTF-8")
-        except exceptions.NotFound:
-            print(f"Secret '{secret_id}' not found.")
-            return None
         except Exception as e:
-            print(f"Error accessing secret '{secret_id}': {e}")
+            # Handle exceptions (e.g., secret not found, permission errors)
+            print(f"Error accessing secret {secret_id}: {e}")
             return None
 
     def _get_connection(self):
@@ -50,10 +45,7 @@ class EvaluatorTools:
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No candidates found."}
-                candidates = [
-                    {"candidate_name": row[0], "content": row[1]}
-                    for row in rows
-                ]
+                candidates = [{"candidate_name": row[0], "content": row[1]} for row in rows]
                 return {"status": "success", "candidates": candidates}
 
     def get_all_openings(self) -> Dict[str, Any]:
@@ -64,10 +56,7 @@ class EvaluatorTools:
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No openings found."}
-                openings = [
-                    {"name": row[0], "job_description": row[1], "evaluation_criteria": row[2]}
-                    for row in rows
-                ]
+                openings = [{"name": row[0], "job_description": row[1], "evaluation_criteria": row[2]} for row in rows]
                 return {"status": "success", "openings": openings}
 
     def get_candidates_by_name(self, names: list[str]) -> Dict[str, Any]:
@@ -81,10 +70,7 @@ class EvaluatorTools:
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No candidates found."}
-                candidates = [
-                    {"candidate_name": row[0], "content": row[1]}
-                    for row in rows
-                ]
+                candidates = [{"candidate_name": row[0], "content": row[1]} for row in rows]
                 return {"status": "success", "candidates": candidates}
 
     def get_candidates_by_email(self, emails: list[str]) -> Dict[str, Any]:
@@ -98,10 +84,7 @@ class EvaluatorTools:
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No candidates found."}
-                candidates = [
-                    {"candidate_name": row[0], "content": row[1]}
-                    for row in rows
-                ]
+                candidates = [{"candidate_name": row[0], "content": row[1]} for row in rows]
                 return {"status": "success", "candidates": candidates}
 
     def get_openings_by_name(self, names: list[str]) -> Dict[str, Any]:
@@ -115,10 +98,7 @@ class EvaluatorTools:
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No openings found."}
-                openings = [
-                    {"name": row[0], "job_description": row[1], "evaluation_criteria": row[2]}
-                    for row in rows
-                ]
+                openings = [{"name": row[0], "job_description": row[1], "evaluation_criteria": row[2]} for row in rows]
                 return {"status": "success", "openings": openings}
 
     def get_openings_by_id(self, ids: list[int]) -> Dict[str, Any]:
@@ -132,11 +112,9 @@ class EvaluatorTools:
                 rows = cur.fetchall()
                 if not rows:
                     return {"status": "error", "message": "No openings found."}
-                openings = [
-                    {"name": row[0], "job_description": row[1], "evaluation_criteria": row[2]}
-                    for row in rows
-                ]
+                openings = [{"name": row[0], "job_description": row[1], "evaluation_criteria": row[2]} for row in rows]
                 return {"status": "success", "openings": openings}
+
 
 _evaluator_tools = EvaluatorTools()
 
