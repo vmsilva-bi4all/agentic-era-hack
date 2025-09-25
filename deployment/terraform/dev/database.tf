@@ -6,8 +6,8 @@ resource "google_sql_database_instance" "main" {
   region           = var.region
 
   settings {
-    tier = "db-f1-micro"
-    edition = "ENTERPRISE"
+    tier     = "db-f1-micro"
+    edition  = "ENTERPRISE"
     ip_configuration {
       ipv4_enabled = true
       authorized_networks {
@@ -16,6 +16,9 @@ resource "google_sql_database_instance" "main" {
       }
     }
   }
+
+  # Ensure the Cloud SQL Admin API (and any others) are fully enabled before attempting to create
+  depends_on = [google_project_service.services]
 }
 
 # resource "google_sql_database_instance" "main" {
@@ -65,6 +68,20 @@ resource "google_sql_user" "hero_user" {
   instance = google_sql_database_instance.main.name
   #password = random_password.cloudsql_password.result
   password = google_secret_manager_secret_version.cloudsql_password.secret_data
+}
+
+# Secret - DB name
+resource "google_secret_manager_secret" "cloudsql_db_name" {
+  project = var.dev_project_id
+  secret_id = "hero-cloudsql-db-name"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "cloudsql_db_name" {
+  secret      = google_secret_manager_secret.cloudsql_db_name.id
+  secret_data = "hero_db"
 }
 
 # Secret - User
@@ -131,10 +148,6 @@ resource "google_secret_manager_secret_version" "cloudsql_port" {
   secret      = google_secret_manager_secret.cloudsql_port.id
   secret_data = "5432"
 }
-
-
-
-
 
 output "hero_postgres_instance_connection_name" {
   value = google_sql_database_instance.main.connection_name

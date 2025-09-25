@@ -17,8 +17,13 @@ provider "google" {
   user_project_override = true
 }
 
+resource "random_id" "logs_bucket_suffix" {
+  byte_length = 3
+}
+
 resource "google_storage_bucket" "logs_data_bucket" {
-  name                        = "${var.dev_project_id}-${var.project_name}-logs-data"
+  # Bucket names are global; append a short random suffix for uniqueness.
+  name                        = lower(substr("${var.dev_project_id}-${var.project_name}-logs-data-${random_id.logs_bucket_suffix.hex}", 0, 63))
   location                    = var.region
   project                     = var.dev_project_id
   uniform_bucket_level_access = true

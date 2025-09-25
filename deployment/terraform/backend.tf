@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket = "qwiklabs-gcp-01-268885fdf398-terraform-state"
-    prefix = "agentic-era-hack/prod"
+    bucket = "hack-agentic-era-prd-terraform-state"
+    prefix = "hack-agentic-era/prod"
   }
 }

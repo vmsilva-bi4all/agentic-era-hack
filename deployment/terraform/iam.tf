@@ -89,3 +89,10 @@ resource "google_service_account_iam_member" "cicd_run_invoker_account_user" {
   member             = "serviceAccount:${resource.google_service_account.cicd_runner_sa.email}"
   depends_on         = [resource.google_project_service.cicd_services, resource.google_project_service.deploy_project_services]
 }
+
+resource "google_project_iam_member" "compute_sa_secret_accessor" {
+  project    = var.dev_project_id
+  role       = "roles/secretmanager.secretAccessor"
+  member     = "serviceAccount:${data.google_project.dev_project.number}-compute@developer.gserviceaccount.com"
+  depends_on = [resource.google_project_service.services]
+}

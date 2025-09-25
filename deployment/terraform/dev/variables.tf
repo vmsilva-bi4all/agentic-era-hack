@@ -55,3 +55,14 @@ variable "app_sa_roles" {
   ]
 }
 
+variable "terraform_deployer_principal" {
+  description = "IAM principal running Terraform that needs permissions to create logging sinks (format: user:you@example.com or serviceAccount:sa@project.iam.gserviceaccount.com). Leave blank if already has sufficient perms."
+  type        = string
+  default     = ""
+}
+
+variable "sendgrid_from_email" {
+    type      = string
+    default   = "noreply@domain.com"
+}
+

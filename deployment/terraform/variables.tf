@@ -134,3 +134,7 @@ variable "create_repository" {
   default     = false
 }
 
+variable "sendgrid_from_email" {
+    type      = string
+    default   = "noreply@domain.com"
+}

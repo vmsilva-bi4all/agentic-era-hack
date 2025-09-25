@@ -11,8 +11,9 @@ opening_manager_agent = Agent(
     output_key="opening_manager_output",
     tools=[
         openings_manager_tools.add_opening,
+        openings_manager_tools.get_openings,
         openings_manager_tools.get_job_opening,
-        openings_manager_tools.list_openings,
+        openings_manager_tools.delete_all_openings,
         openings_manager_tools.delete_opening,
     ],
 )

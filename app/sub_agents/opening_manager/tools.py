@@ -1,7 +1,10 @@
-import psycopg2
+from typeguard import typechecked
 from typing import Union, Dict, Any
-from google.cloud import secretmanager
+import logging
+import psycopg2
 import google.auth
+from app.utils import secrets
+from app.utils import bd
 
 
 class OpeningsManagerTools:
@@ -11,31 +14,19 @@ class OpeningsManagerTools:
         try:
             _, project_id = google.auth.default()
         except google.auth.exceptions.DefaultCredentialsError:
-            project_id = None
+            error_message = "Google Application Default Credentials not found. Please set the GOOGLE_APPLICATION_CREDENTIALS environment variable."
+            logging.error(error_message)
+            raise RuntimeError(error_message)
 
         self.db_params = {
-            "host": self._get_secret(project_id, "hero-cloudsql-host"),
-            "port": self._get_secret(project_id, "hero-cloudsql-port"),
-            "dbname": self._get_secret(project_id, "hero-cloudsql-dbname"),
-            "user": self._get_secret(project_id, "hero-cloudsql-user"),
-            "password": self._get_secret(project_id, "hero-cloudsql-password"),
+            "host": secrets.get_secret(project_id, "hero-cloudsql-host"),
+            "port": secrets.get_secret(project_id, "hero-cloudsql-port"),
+            "dbname": secrets.get_secret(project_id, "hero-cloudsql-db-name"),
+            "user": secrets.get_secret(project_id, "hero-cloudsql-user"),
+            "password": secrets.get_secret(project_id, "hero-cloudsql-password"),
         }
 
-    def _get_secret(self, project_id: str, secret_id: str, version_id: str = "latest") -> str:
-        """Retrieves a secret from Google Cloud Secret Manager."""
-        try:
-            client = secretmanager.SecretManagerServiceClient()
-            name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-            response = client.access_secret_version(name=name)
-            return response.payload.data.decode("UTF-8")
-        except Exception as e:
-            # Handle exceptions (e.g., secret not found, permission errors)
-            print(f"Error accessing secret {secret_id}: {e}")
-            return None
-
-    def _get_connection(self):
-        return psycopg2.connect(**self.db_params)
-
+    @typechecked
     def add_opening(self, name: str, job_description: str, evaluation_criteria: str) -> Dict[str, str]:
         """Adds a new job opening to the database.
 
@@ -49,26 +40,140 @@ class OpeningsManagerTools:
         """
 
         try:
-            with self._get_connection() as conn:
+            with bd.get_connection(db_params=self.db_params) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "INSERT INTO human_resources.openings (name, job_description, evaluation_criteria) VALUES (%s, %s, %s) RETURNING id, name, job_description, evaluation_criteria;",
-                        (name, job_description, evaluation_criteria),
+                        "SELECT name FROM human_resources.openings WHERE LOWER(name) = LOWER(%s);",
+                        (name,),
                     )
+                    name_exists = cur.fetchone()
+                    conn.commit()
+                    if name_exists:
+                        cur.execute(
+                            "UPDATE human_resources.openings SET job_description = %s, evaluation_criteria = %s WHERE LOWER(name) = LOWER(%s) RETURNING name, job_description, evaluation_criteria;",
+                            (job_description, evaluation_criteria, name,),
+                        )
+                    else:
+                        cur.execute(
+                            "INSERT INTO human_resources.openings (name, job_description, evaluation_criteria) VALUES (%s, %s, %s) RETURNING name, job_description, evaluation_criteria;",
+                            (name, job_description, evaluation_criteria),
+                        )
                     opening = cur.fetchone()
                     conn.commit()
                     return {
                         "status": "success",
-                        "id": opening[0],
-                        "name": opening[1],
-                        "job_description": opening[2],
-                        "evaluation_criteria": opening[3],
+                        "name": opening[0],
+                        "job_description": opening[1],
+                        "evaluation_criteria": opening[2],
                     }
         except psycopg2.IntegrityError:
-            return {"status": "error", "message": "A job opening with this name already exists."}
+            error_message = "A job opening with this name already exists."
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            error_message = f"Error adding job opening: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
 
+    @typechecked
+    def get_openings(self) -> Dict[str, Any]:
+        """Lists all job openings in the database.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation and a list of job openings.
+        """
+
+        try:
+            with bd.get_connection(db_params=self.db_params) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT name, job_description, evaluation_criteria FROM human_resources.openings;")
+                    openings = cur.fetchall()
+
+                    if not openings:
+                        return {"status": "warning", "message": "No job openings found."}
+
+                    jobs = [
+                        {
+                            "name": opening[0],
+                            "job_description": opening[1],
+                            "evaluation_criteria": opening[2],
+                        }
+                        for opening in openings
+                    ]
+
+                    return {"status": "success", "openings": jobs}
+        except Exception as e:
+            error_message = f"Error listing job openings: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
+
+    @typechecked
+    def delete_all_openings(self) -> Dict[str, str]:
+        """Deletes all job openings from the database.
+
+        Returns:
+            Dict[str, str]: A dictionary containing the status of the deletion.
+        """
+
+        try:
+            with bd.get_connection(db_params=self.db_params) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM human_resources.openings RETURNING name;")
+                    deleted_openings = cur.fetchall()
+                    conn.commit()
+
+                    if not deleted_openings:
+                        return {"status": "warning", "message": "No job openings to delete."}
+
+                    deleted_names = [opening[0] for opening in deleted_openings]
+                    return {"status": "success", "deleted_openings": deleted_names}
+        except Exception as e:
+            error_message = f"Error deleting all job openings: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
+
+    @typechecked
+    def delete_opening(self, name: str) -> Dict[str, str]:
+        """Deletes a job opening from the database.
+
+        Args:
+            name (str): The name of the job opening to delete.
+
+        Returns:
+            Dict[str, str]: A dictionary containing the status of the deletion.
+        """
+
+        try:
+            with bd.get_connection(db_params=self.db_params) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT name FROM human_resources.openings WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
+                        (
+                            f"%{name}%",
+                            f"%{name}",
+                            f"{name}%",
+                        ),
+                    )
+                    rows = cur.fetchall()
+
+                    if not rows:
+                        return {"status": "warning", "message": "No job openings found."}
+                    elif len(rows) > 1:
+                        return {"status": "warning", "message": "Multiple job openings found. Full name required."}
+
+                    cur.execute(
+                        "DELETE FROM human_resources.openings WHERE LOWER(name) = LOWER(%s) RETURNING name, job_description, evaluation_criteria;",
+                        (name,),
+                    )
+                    opening = cur.fetchone()
+                    conn.commit()
+                    return {"status": "success", "name": opening[0], "job_description": opening[1], "evaluation_criteria": opening[2]}
+        except Exception as e:
+            error_message = f"Error deleting job opening: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
+
+    @typechecked
     def get_job_opening(self, name: Union[None, str] = None) -> Dict[str, Any]:
         """Retrieves a job opening from the database.
 
@@ -80,84 +185,29 @@ class OpeningsManagerTools:
         """
 
         try:
-            with self._get_connection() as conn:
+            with bd.get_connection(db_params=self.db_params) as conn:
                 with conn.cursor() as cur:
-                    if name:
-                        cur.execute(
-                            "SELECT id, name, job_description, evaluation_criteria, created_at, updated_at FROM human_resources.openings WHERE name = %s;",
-                            (name,),
-                        )
-                    else:
-                        return {"status": "error", "message": "No name provided."}
-                    opening = cur.fetchone()
-                    if opening is None:
+                    cur.execute(
+                        "SELECT name, job_description, evaluation_criteria FROM human_resources.openings WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
+                        (
+                            f"%{name}%",
+                            f"%{name}",
+                            f"{name}%",
+                        ),
+                    )
+                    rows = cur.fetchall()
+
+                    if not rows:
                         return {"status": "warning", "message": "Job opening not found."}
-                    return {
-                        "status": "success",
-                        "id": opening[0],
-                        "name": opening[1],
-                        "job_description": opening[2],
-                        "evaluation_criteria": opening[3],
-                        "created_at": opening[4],
-                        "updated_at": opening[5],
-                    }
+                    elif len(rows) > 1:
+                        return {"status": "warning", "message": "Multiple job openings found. Full name required."}
+
+                    opening = rows[0]
+                    return {"status": "success", "name": opening[0], "job_description": opening[1], "evaluation_criteria": opening[2]}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    def list_openings(self) -> Dict[str, Any]:
-        """Lists all job openings in the database.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the status of the operation and a list of job openings.
-        """
-
-        try:
-            print("Listing all job openings...")
-
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT id, name, job_description, evaluation_criteria, created_at, updated_at FROM human_resources.openings;")
-                    openings = cur.fetchall()
-
-                    print(f"Found {len(openings)} openings.")
-
-                    if not openings:
-                        return {"status": "warning", "message": "No job openings found."}
-
-                    jobs = [
-                        {
-                            "id": opening[0],
-                            "name": opening[1],
-                            "job_description": opening[2],
-                            "evaluation_criteria": opening[3],
-                            "created_at": opening[4],
-                            "updated_at": opening[5],
-                        }
-                        for opening in openings
-                    ]
-
-                    return {"status": "success", "openings": jobs}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    def delete_opening(self, id: int) -> Dict[str, str]:
-        """Deletes a job opening from the database.
-
-        Args:
-            id (int): The ID of the job opening to delete.
-
-        Returns:
-            Dict[str, str]: A dictionary containing the status of the deletion.
-        """
-
-        try:
-            with self._get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM human_resources.openings WHERE id = %s;", (id,))
-                    conn.commit()
-                    return {"status": "success", "message": "Job opening deleted successfully."}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+            error_message = f"Error retrieving job opening: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
 
 
 openings_manager_tools = OpeningsManagerTools()

@@ -17,19 +17,17 @@ locals {
     "aiplatform.googleapis.com",
     "cloudbuild.googleapis.com",
     "run.googleapis.com",
-    "bigquery.googleapis.com",
     "discoveryengine.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
-    "bigquery.googleapis.com",
     "serviceusage.googleapis.com",
     "logging.googleapis.com",
     "cloudtrace.googleapis.com",
     "compute.googleapis.com",
     "servicenetworking.googleapis.com",
-    "alloydb.googleapis.com",
     "secretmanager.googleapis.com",
-    "dns.googleapis.com"
+    "dns.googleapis.com",
+    "sqladmin.googleapis.com"
   ]
 }
 

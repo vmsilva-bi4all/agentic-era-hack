@@ -1,8 +1,10 @@
-from __future__ import annotations
-import psycopg2
+from typeguard import typechecked
 from typing import Any, Dict
-from google.cloud import secretmanager
+import logging
+import psycopg2
 import google.auth
+from app.utils import secrets
+from app.utils import bd
 
 
 class CandidateManagerTools:
@@ -12,31 +14,19 @@ class CandidateManagerTools:
         try:
             _, project_id = google.auth.default()
         except google.auth.exceptions.DefaultCredentialsError:
-            project_id = None
+            error_message = "Google Application Default Credentials not found. Please set the GOOGLE_APPLICATION_CREDENTIALS environment variable."
+            logging.error(error_message)
+            raise RuntimeError(error_message)
 
         self.db_params = {
-            "host": self._get_secret(project_id, "hero-cloudsql-host"),
-            "port": self._get_secret(project_id, "hero-cloudsql-port"),
-            "dbname": self._get_secret(project_id, "hero-cloudsql-dbname"),
-            "user": self._get_secret(project_id, "hero-cloudsql-user"),
-            "password": self._get_secret(project_id, "hero-cloudsql-password"),
+            "host": secrets.get_secret(project_id, "hero-cloudsql-host"),
+            "port": secrets.get_secret(project_id, "hero-cloudsql-port"),
+            "dbname": secrets.get_secret(project_id, "hero-cloudsql-db-name"),
+            "user": secrets.get_secret(project_id, "hero-cloudsql-user"),
+            "password": secrets.get_secret(project_id, "hero-cloudsql-password"),
         }
 
-    def _get_secret(self, project_id: str, secret_id: str, version_id: str = "latest") -> str:
-        """Retrieves a secret from Google Cloud Secret Manager."""
-        try:
-            client = secretmanager.SecretManagerServiceClient()
-            name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-            response = client.access_secret_version(name=name)
-            return response.payload.data.decode("UTF-8")
-        except Exception as e:
-            # Handle exceptions (e.g., secret not found, permission errors)
-            print(f"Error accessing secret {secret_id}: {e}")
-            return None
-
-    def _get_connection(self):
-        return psycopg2.connect(**self.db_params)
-
+    @typechecked
     def add_candidate(self, candidate_name: str, candidate_email: str, candidate_content: str) -> Dict[str, Any]:
         """Adds a new candidate to the database.
 
@@ -50,7 +40,7 @@ class CandidateManagerTools:
         """
 
         try:
-            with self._get_connection() as conn:
+            with bd.get_connection(db_params=self.db_params) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT email FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s);",
@@ -77,12 +67,17 @@ class CandidateManagerTools:
                         )
                     cv = cur.fetchone()
                     conn.commit()
-                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+                    return {"status": "success", "candidate_name": cv[0], "candidate_email": cv[1], "cv_content": cv[2]}
         except psycopg2.IntegrityError:
-            return {"status": "error", "message": "A CV with this candidate name and candidate email already exists."}
+            error_message = "A CV with this candidate name and candidate email already exists."
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            error_message = f"Error adding candidate: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
 
+    @typechecked
     def get_candidates(self) -> Dict[str, Any]:
         """Get all the candidates.
 
@@ -91,17 +86,40 @@ class CandidateManagerTools:
         """
 
         try:
-            with self._get_connection() as conn:
+            with bd.get_connection(db_params=self.db_params) as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT name, email, content FROM human_resources.candidates;")
                     rows = cur.fetchall()
                     if not rows:
                         return {"status": "warning", "message": "No candidates found."}
-                    candidates = [{"candidate name": row[0], "candidate email": row[1], "cv content": row[2]} for row in rows]
+                    candidates = [{"candidate_name": row[0], "candidate_email": row[1], "cv_content": row[2]} for row in rows]
                     return {"status": "success", "candidates": candidates}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            error_message = f"Error retrieving candidates: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
 
+    @typechecked
+    def delete_all_candidates(self) -> Dict[str, Any]:
+        """Deletes all candidates from the database.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the status of the operation and the number of deleted candidates.
+        """
+
+        try:
+            with bd.get_connection(db_params=self.db_params) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM human_resources.candidates RETURNING name, email, content;")
+                    deleted_rows = cur.fetchall()
+                    conn.commit()
+                    return {"status": "success", "deleted_count": len(deleted_rows)}
+        except Exception as e:
+            error_message = f"Error deleting candidates: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
+
+    @typechecked
     def delete_candidate_by_name(self, candidate_name: str) -> Dict[str, Any]:
         """Deletes a candidate from the database using the candidate name.
 
@@ -113,7 +131,7 @@ class CandidateManagerTools:
         """
 
         try:
-            with self._get_connection() as conn:
+            with bd.get_connection(db_params=self.db_params) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT name FROM human_resources.candidates WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
@@ -136,12 +154,17 @@ class CandidateManagerTools:
                     )
                     cv = cur.fetchone()
                     conn.commit()
-                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+                    return {"status": "success", "candidate_name": cv[0], "candidate_email": cv[1], "cv_content": cv[2]}
         except psycopg2.IntegrityError:
-            return {"status": "error", "message": "A CV with this candidate name already exists."}
+            error_message = "A CV with this candidate name already exists."
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            error_message = f"Error deleting candidate: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
 
+    @typechecked
     def delete_candidate_by_email(self, candidate_email: str) -> Dict[str, Any]:
         """Deletes a candidate from the database using the candidate email.
 
@@ -153,7 +176,7 @@ class CandidateManagerTools:
         """
 
         try:
-            with self._get_connection() as conn:
+            with bd.get_connection(db_params=self.db_params) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "DELETE FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s) RETURNING name, email, content;",
@@ -161,12 +184,17 @@ class CandidateManagerTools:
                     )
                     cv = cur.fetchone()
                     conn.commit()
-                    return {"status": "success", "candidate name": cv[0], "candidate email": cv[1], "cv content": cv[2]}
+                    return {"status": "success", "candidate_name": cv[0], "candidate_email": cv[1], "cv_content": cv[2]}
         except psycopg2.IntegrityError:
-            return {"status": "error", "message": "A CV with this candidate email already exists."}
+            error_message = "A CV with this candidate email already exists."
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            error_message = f"Error deleting candidate: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
 
+    @typechecked
     def get_candidate_by_name(self, candidate_name: str) -> Dict[str, Any]:
         """Retrieves a candidate from the database using the candidate name.
 
@@ -178,7 +206,7 @@ class CandidateManagerTools:
         """
 
         try:
-            with self._get_connection() as conn:
+            with bd.get_connection(db_params=self.db_params) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s) OR LOWER(name) LIKE LOWER(%s);",
@@ -198,8 +226,11 @@ class CandidateManagerTools:
                     candidate = rows[0]
                     return {"status": "success", "candidate_name": candidate[0], "candidate_email": candidate[1], "cv_content": candidate[2]}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            error_message = f"Error retrieving candidate: {e}"
+            logging.error(error_message)
+            return {"status": "error", "message": error_message}
 
+    @typechecked
     def get_candidate_by_email(self, candidate_email: str) -> Dict[str, Any]:
         """Retrieves a candidate from the database using the candidate email.
 
@@ -211,7 +242,7 @@ class CandidateManagerTools:
         """
 
         try:
-            with self._get_connection() as conn:
+            with bd.get_connection(db_params=self.db_params) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         "SELECT name, email, content FROM human_resources.candidates WHERE LOWER(email) = LOWER(%s);",
@@ -220,8 +251,10 @@ class CandidateManagerTools:
                     row = cur.fetchone()
                     if not row:
                         return {"status": "warning", "message": "CV not found."}
-                    return {"status": "success", "candidate name": row[0], "candidate email": row[1], "candidate content": row[2]}
+                    return {"status": "success", "candidate_name": row[0], "candidate_email": row[1], "cv_content": row[2]}
         except Exception as e:
+            error_message = f"Error retrieving candidate: {e}"
+            logging.error(error_message)
             return {"status": "error", "message": str(e)}
 
 

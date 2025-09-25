@@ -15,12 +15,18 @@
 import os
 
 import google.auth
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from google.adk.cli.fast_api import get_fast_api_app
 from google.cloud import logging as google_cloud_logging
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider, export
-from google.cloud import secretmanager
+import logging
+from google.cloud.logging import Client
+from google.cloud.logging_v2.handlers import setup_logging
+from fastapi_cloud_logging import FastAPILoggingHandler, RequestLoggingMiddleware
+from app.utils import secrets
 
 from app.utils.gcs import create_bucket_if_not_exists
 from app.utils.tracing import CloudTraceLoggingSpanExporter
@@ -46,23 +52,11 @@ trace.set_tracer_provider(provider)
 
 AGENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-def _get_secret(project_id: str, secret_id: str, version_id: str = "latest") -> str:
-    """Retrieves a secret from Google Cloud Secret Manager."""
-    try:
-        client = secretmanager.SecretManagerServiceClient()
-        name = f"projects/{project_id}/secrets/{secret_id}/versions/{version_id}"
-        response = client.access_secret_version(name=name)
-        return response.payload.data.decode("UTF-8")
-    except Exception as e:
-        # Handle exceptions (e.g., secret not found, permission errors)
-        print(f"Error accessing secret {secret_id}: {e}")
-        return None
-
-# AlloyDB session configuration
-db_user = _get_secret(project_id, "hero-cloudsql-user")
-db_name = "postgres"
-db_pass = _get_secret(project_id, "hero-cloudsql-password")
-db_host = _get_secret(project_id, "hero-cloudsql-host")
+# Retrieve database credentials from Secret Manager
+db_user = secrets.get_secret(project_id, "hero-cloudsql-user")
+db_name = secrets.get_secret(project_id, "hero-cloudsql-db-name")
+db_pass = secrets.get_secret(project_id, "hero-cloudsql-password")
+db_host = secrets.get_secret(project_id, "hero-cloudsql-host")
 
 # Set session_service_uri if database credentials are available
 session_service_uri = None
@@ -78,6 +72,54 @@ app: FastAPI = get_fast_api_app(
 )
 app.title = "hero"
 app.description = "API for interacting with the Agent hero"
+app.add_middleware(RequestLoggingMiddleware)
+handler = FastAPILoggingHandler(Client())
+setup_logging(handler)
+
+# CORS settings
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Function to add CORS headers
+def add_cors(response: JSONResponse):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+
+# Health check endpoint
+@app.get("/")
+async def health_check():
+    logging.info("Root endpoint / requested")
+    response = JSONResponse(content={"service": "Service Running"})
+    return add_cors(response)
+
+
+# Middleware to handle OPTIONS requests
+@app.options("/{path:path}")
+async def options_handler():
+    response = JSONResponse(content={})
+    response = add_cors(response)
+    response.headers["Access-Control-Allow-Headers"] = "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Allow"] = "OPTIONS, GET, HEAD, POST, PUT, DELETE"
+    return response
+
+
+# Middleware to ensure all responses have CORS headers
+@app.middleware("http")
+async def cors_middleware(request: Request, call_next):
+    response = await call_next(request)
+    return add_cors(response)
 
 
 @app.post("/feedback")

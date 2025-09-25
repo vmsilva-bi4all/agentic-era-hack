@@ -12,6 +12,7 @@ candidate_manager_agent = Agent(
     tools=[
         candidate_manager_tools.add_candidate,
         candidate_manager_tools.get_candidates,
+        candidate_manager_tools.delete_all_candidates,
         candidate_manager_tools.delete_candidate_by_name,
         candidate_manager_tools.delete_candidate_by_email,
         candidate_manager_tools.get_candidate_by_name,

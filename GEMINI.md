@@ -1547,8 +1547,8 @@ agent-starter-pack create PROJECT_NAME [OPTIONS]
 
 **Data & Storage:**
 *   `-i, --include-data-ingestion`: Include data ingestion pipeline.
-*   `-ds, --datastore`: Datastore type (`vertex_ai_search`, `vertex_ai_vector_search`, `alloydb`).
-*   `--session-type`: Session storage (`in_memory`, `alloydb`, `agent_engine`).
+*   `-ds, --datastore`: Datastore type (`vertex_ai_search`, `vertex_ai_vector_search`).
+*   `--session-type`: Session storage (`in_memory`, `agent_engine`, or external Postgres if configured separately).
 
 **Project Creation:**
 *   `-o, --output-dir`: Output directory (default: current directory).
@@ -1705,7 +1705,7 @@ uvx agent-starter-pack setup-cicd
 ### Session Management
 
 For stateful agents, the starter pack supports persistent sessions.
-*   **Cloud Run:** Choose between `in_memory` (for testing) and durable `alloydb` sessions using the `--session-type` flag.
+*   **Cloud Run:** Choose between `in_memory` (for testing) or an external Postgres (configure via environment variables) for durable sessions using the `--session-type` flag (set to `agent_engine` for managed sessions or custom for external Postgres).
 *   **Agent Engine:** Provides session management automatically.
 
 ### Monitoring & Observability

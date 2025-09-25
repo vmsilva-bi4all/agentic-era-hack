@@ -39,6 +39,20 @@ resource "google_sql_user" "hero_user" {
   password = google_secret_manager_secret_version.cloudsql_password[each.key].secret_data
 }
 
+# Secret - DB name
+resource "google_secret_manager_secret" "cloudsql_db_name" {
+  project = var.dev_project_id
+  secret_id = "hero-cloudsql-db-name"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "cloudsql_db_name" {
+  secret      = google_secret_manager_secret.cloudsql_db_name.id
+  secret_data = "hero_db"
+}
+
 # Secret - User
 resource "google_secret_manager_secret" "cloudsql_user" {
   for_each = local.deploy_project_ids

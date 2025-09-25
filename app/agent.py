@@ -20,7 +20,11 @@ MODEL = "gemini-2.5-pro"
 hr_coordinator = LlmAgent(
     name="hr_coordinator",
     model=MODEL,
-    description=("guide users through a structured process to manage human resources tasks. " "orchestrate a series of expert sub-agents to store and retrieve CVs and job offers, " "and find the best matches between them."),
+    description=(
+        """Guide users through a structured process to manage human resources tasks.
+        Orchestrate a series of expert sub-agents to store and retrieve CVs and job offers,
+        and find the best matches between them."""
+    ),
     instruction=prompt.HR_COORDINATOR_PROMPT,
     output_key="hr_coordinator_output",
     tools=[

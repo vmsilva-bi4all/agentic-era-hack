@@ -56,5 +56,21 @@ resource "google_project_iam_member" "app_sa_roles" {
   depends_on = [resource.google_project_service.services]
 }
 
+# Provide the principal in the variable terraform_deployer_principal
+resource "google_project_iam_member" "terraform_deployer_logging_config" {
+  count   = var.terraform_deployer_principal != "" ? 1 : 0
+  project = var.dev_project_id
+  role    = "roles/logging.configWriter"
+  member  = var.terraform_deployer_principal
+  depends_on = [resource.google_project_service.services]
+}
+
+resource "google_project_iam_member" "compute_sa_secret_accessor" {
+  project    = var.dev_project_id
+  role       = "roles/secretmanager.secretAccessor"
+  member     = "serviceAccount:${data.google_project.dev_project.number}-compute@developer.gserviceaccount.com"
+  depends_on = [resource.google_project_service.services]
+}
+
 
 
